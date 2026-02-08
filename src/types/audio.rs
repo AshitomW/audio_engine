@@ -1,6 +1,6 @@
-/// Audio format and buffer related types
-use std::fmt;
 use std::num::NonZeroU32;
+/// Audio format and buffer related types
+use std::{default, fmt};
 
 use crate::error::{AudioEngineError, Result};
 use crate::types::SampleRate;
@@ -111,6 +111,52 @@ impl fmt::Display for ChannelCount {
             Self::Quad => write!(f, "Quad"),
             Self::Surround51 => write!(f, "5.1"),
             Self::Surround71 => write!(f, "7.1"),
+        }
+    }
+}
+
+// ==============
+// Channel Layout
+// =============
+
+/// Describes the spatial layout of the audio channels
+#[derive(Debug, Clone, Copy, PartialEq, Hash, Default)]
+pub enum ChannelLayout {
+    /// Single Channel , no spatial positions
+    Mono,
+    /// Standard Stereo (Left, Right)
+    #[default]
+    Stereo,
+    /// Quadraphonic (FL, FR, RL, RR)
+    Quad,
+    /// 5.1 Surround (FL, FR, C, LFE, RL, RR)
+    Surround51,
+    /// 7.1 Surround (FL, FR, C, LFE, RL, RR, SL, SR)
+    Surround71,
+}
+
+impl ChannelLayout {
+    /// Returns the coresponding channel count
+    #[must_use]
+    pub const fn channel_count(self) -> ChannelCount {
+        match self {
+            Self::Mono => ChannelCount::Mono,
+            Self::Stereo => ChannelCount::Stereo,
+            Self::Quad => ChannelCount::Quad,
+            Self::Surround51 => ChannelCount::Surround51,
+            Self::Surround71 => ChannelCount::Surround71,
+        }
+    }
+
+    /// Returns the channel labels for the layout
+    #[must_use]
+    pub const fn channel_labels(self) -> &'static [&'static str] {
+        match self {
+            Self::Mono => &["M"],
+            Self::Stereo => &["L", "R"],
+            Self::Quad => &["FL", "FR", "RL", "RR"],
+            Self::Surround51 => &["FL", "FR", "C", "LFE", "RL", "RR"],
+            Self::Surround71 => &["FL", "FR", "C", "LFE", "RL", "RR", "SL", "SR"],
         }
     }
 }
