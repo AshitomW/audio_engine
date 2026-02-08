@@ -155,7 +155,7 @@ impl StreamUrl {
 
     /// Returns the original url string
     #[must_use]
-    pub fn as_str(&self) -> &self {
+    pub fn as_str(&self) -> &str {
         &self.raw
     }
 
@@ -167,7 +167,7 @@ impl StreamUrl {
 
     /// Return the host
     #[must_use]
-    pub fn host(&self) -> &self {
+    pub fn host(&self) -> &str {
         &self.host
     }
 
@@ -186,7 +186,7 @@ impl StreamUrl {
     /// Returns the stream key for (RTMP)
     #[must_use]
     pub fn stream_key(&self) -> Option<&str> {
-        self.stream_key().as_deref()
+        self.stream_key.as_deref()
     }
 
     /// Attempts to resolve to a socket address.
