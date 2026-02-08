@@ -1,6 +1,6 @@
 //! Error Types
 
-use crate::types::SampleRate;
+use crate::types::{ChannelCount, SampleRate};
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -89,12 +89,12 @@ pub enum AudioEngineError {
     },
 
     /// Channel coutn mismatch between the components
-    #[error("Channel count mismatch: source={source}, target={target}")]
+    #[error("Channel count mismatch: source_count={source_count}, target_count={target_count}")]
     ChannelCountMismatch {
         /// Source channel count,
-        source: ChannelCount,
+        source_count: ChannelCount,
         /// Target channelCount,
-        target: ChannelCount,
+        target_count: ChannelCount,
     },
 
     #[error("Audio device not found: {device_name}")]
