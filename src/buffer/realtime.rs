@@ -100,7 +100,7 @@ impl<T: Clone + Default> RealtimeBuffer<T> {
 }
 
 impl<T> RealtimeBuffer<T> {
-    /// Returning the capacity of the buffer
+    /// Returns the capacity of the buffer
     #[must_use]
     pub fn capacity(&self) -> usize {
         self.data.len()
@@ -144,12 +144,6 @@ impl<T> RealtimeBuffer<T> {
 
     /// Returns the entire buffer including usused capaciity
     #[must_use]
-    pub fn as_full_slice(&mut self) -> &mut [T] {
-        &mut self.data[..self.len]
-    }
-
-    /// Retruns the entire buffer including unused capacity
-    #[must_use]
     pub fn as_full_slice(&self) -> &[T] {
         &self.data
     }
@@ -168,5 +162,192 @@ impl<T> RealtimeBuffer<T> {
         } else {
             None
         }
+    }
+
+    /// Gets a mutable reference to an element, if in bounds.
+    #[must_use]
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
+        if index < self.len {
+            self.data.get_mut(index)
+        } else {
+            None
+        }
+    }
+
+    /// Sets the length without modifying data.
+    ///
+    /// Panics,
+    /// Panics if new_len is greater than the capacity
+    pub fn set_len(&mut self, new_len: usize) {
+        assert!(
+            new_len <= self.data.len(),
+            "new_len ({new_len}) exceeds capacity ({})",
+            self.data.len()
+        );
+        self.len = new_len;
+    }
+
+    /// Returns an iterator over valid elements
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        self.data[..self.len].iter()
+    }
+
+    /// Returns a mutable iterator over valid elements
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.data[..self.len].iter_mut()
+    }
+}
+
+impl<T: Send + 'static> RealtimeSafe for RealtimeBuffer<T> {}
+impl<T> HeapFree for RealtimeBuffer<T> {} // No allocations allowed after construction
+impl<T> NonBlocking for RealtimeBuffer<T> {}
+
+impl<T> Deref for RealtimeBuffer<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        &self.data[..self.len]
+    }
+}
+
+impl<T> DerefMut for RealtimeBuffer<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data[..self.len]
+    }
+}
+
+impl<T> Index<usize> for RealtimeBuffer<T> {
+    type Output = T;
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.data[..self.len][index]
+    }
+}
+
+impl<T> IndexMut<usize> for RealtimeBuffer<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.data[..self.len][index]
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for RealtimeBuffer<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Realtime Buffer")
+            .field("len", &self.len)
+            .field("capacity", &self.data.len())
+            .field("data", &&self.data[..self.len])
+            .finish()
+    }
+}
+
+// ================
+// Specialized Audio Buffer
+// ===============
+
+/// A specialized audio buffer with channel-aware access.
+#[derive(Clone)]
+pub struct AudioBuffer {
+    /// Interleaved sample data
+    data: RealtimeBuffer<Sample>,
+    /// Number of channels
+    channels: ChannelCount,
+    /// Number of frames
+    frames: usize,
+}
+
+impl AudioBuffer {
+    /// Creates a new audio buffer with the given frame count and channel count.
+    #[must_use]
+    pub fn new(frames: usize, channels: ChannelCount) -> Self {
+        let total_samples = frames * channels.count_usize();
+        Self {
+            data: RealtimeBuffer::with_value(total_samples, Sample::SILENCE),
+            channels,
+            frames,
+        }
+    }
+
+    /// Returns the number of frames
+    #[must_use]
+    pub const fn frames(&self) -> usize {
+        self.frames
+    }
+
+    /// Returns the channel count
+    pub const fn channels(&self) -> ChannelCount {
+        self.channels
+    }
+    /// Returns the total number of smaples
+    pub fn sample_count(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Gets a sample at given frame and channel
+    #[must_use]
+    pub fn get_sample(&self, frame: usize, channel: usize) -> Option<Sample> {
+        if frame < self.frames && channel < self.channels.count_usize() {
+            let index = frame * self.channels.count_usize() + channel;
+            self.data.get(index).copied()
+        } else {
+            None
+        }
+    }
+
+    /// Sets a sample at the given frame and channel
+    pub fn set_sample(&mut self, frame: usize, channel: usize, sample: Sample) {
+        if frame < self.frames && channel < self.channels.count_usize() {
+            let index = frame * self.channels.count_usize() + channel;
+            if let Some(s) = self.data.get_mut(index) {
+                *s = sample
+            }
+        }
+    }
+
+    /// Returns a mutable slice of samples for a single frame.
+    #[must_use]
+    pub fn frame_mut(&mut self, frame_index: usize) -> Option<&mut [Sample]> {
+        if frame_index < self.frames {
+            let start = frame_index * self.channels.count_usize();
+            let end = start + self.channels.count_usize();
+            Some(&mut self.data.as_full_mut_slice()[start..end])
+        } else {
+            None
+        }
+    }
+
+    /// Returns the raw sample buffer
+    #[must_use]
+    pub fn samples(&self) -> &[Sample] {
+        self.data.as_full_slice()
+    }
+
+    /// Returns the raw sample buffer mutably.
+    #[must_use]
+    pub fn samples_mut(&mut self) -> &mut [Sample] {
+        self.data.as_full_mut_slice()
+    }
+
+    /// Fills the buffer with silence
+    pub fn silence(&mut self) {
+        self.data.fill(Sample::SILENCE);
+    }
+
+    /// Applies gain to all samples
+    pub fn apply_gain(&mut self, gain: crate::types::Gain) {
+        for sample in self.data.as_full_mut_slice() {
+            *sample = sample.apply_gain(gain);
+        }
+    }
+}
+
+impl RealtimeSafe for AudioBuffer {}
+impl HeapFree for AudioBuffer {}
+impl NonBlocking for AudioBuffer {}
+
+impl fmt::Debug for AudioBuffer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AudioBuffer")
+            .field("frames", &self.frames)
+            .field("channels", &self.channels)
+            .finish()
     }
 }

@@ -13,3 +13,4 @@
 pub mod error;
 pub mod markers;
 pub mod types;
+pub mod buffer;

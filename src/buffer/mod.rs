@@ -8,4 +8,4 @@
 pub mod realtime;
 pub mod ring;
 pub use realtime::RealtimeBuffer;
-pub use ring::{RingBuffer, RingBufferWriter, RingBuggerReader};
+pub use ring::{RingBuffer, RingBufferReader, RingBufferWriter};
