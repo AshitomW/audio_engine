@@ -1,20 +1,20 @@
-//! Real time safe channel abstractions
+//! Real-time safe channel abstractions.
 //!
-//!
-//! This module is for providing type safe wrappers around channels
-//! that enforce saftey at the type level
+//! This module provides type-safe wrappers around channels that enforce
+//! real-time safety at the type level.
 
-use flume::{Receiver, SendError, TrySendError};
+use flume::{Receiver, Sender, TrySendError};
 use std::fmt;
 
 use crate::error::{AudioEngineError, Result};
 use crate::markers::{NonBlocking, RealtimeSafe};
 
-/// Creates a bounded channel pair for control messages
-/// the sender is intended for the control thread (non_RT)
-/// and the receiver for the real time thread.
+/// Creates a bounded channel pair for control messages.
+///
+/// The sender is intended for the control thread (non-RT),
+/// and the receiver for the real-time thread.
 #[must_use]
-pub fn control_channel<T>(capacity: usize) -> (ControlSend<T>, RealtimeReceiver<T>) {
+pub fn control_channel<T>(capacity: usize) -> (ControlSender<T>, RealtimeReceiver<T>) {
     let (tx, rx) = flume::bounded(capacity);
     (ControlSender { inner: tx }, RealtimeReceiver { inner: rx })
 }
@@ -26,21 +26,22 @@ pub fn feedback_channel<T>(capacity: usize) -> (RealtimeSender<T>, ControlReceiv
     (RealtimeSender { inner: tx }, ControlReceiver { inner: rx })
 }
 
-// ====================
-// Control Thread -> Real Time Thread
-// ====================
+// ============================================================================
+// Control Thread -> Real-Time Thread
+// ============================================================================
 
-/// Sender end for control messages (non Rt to RT)
+/// Sender end for control messages (non-RT to RT).
 ///
-/// This sender is held by the control/ui thread and sends message
-/// to the real time thread. It may block if the channel is full.
+/// This sender is held by the control/UI thread and sends messages
+/// to the real-time thread. It may block if the channel is full.
 pub struct ControlSender<T> {
     inner: Sender<T>,
 }
 
 impl<T> ControlSender<T> {
-    /// Sends a message, blocking if the channel if full.
+    /// Sends a message, blocking if the channel is full.
     ///
+    /// # Errors
     /// Returns an error if the receiver has been dropped.
     pub fn send(&self, msg: T) -> Result<()> {
         self.inner
@@ -50,6 +51,7 @@ impl<T> ControlSender<T> {
 
     /// Tries to send a message without blocking.
     ///
+    /// # Errors
     /// Returns an error if the channel is full or disconnected.
     pub fn try_send(&self, msg: T) -> Result<()> {
         self.inner.try_send(msg).map_err(|e| match e {
@@ -64,10 +66,16 @@ impl<T> ControlSender<T> {
         self.inner.is_disconnected()
     }
 
-    /// Retruns the number of messages in the channel.
+    /// Returns the number of messages in the channel.
     #[must_use]
     pub fn len(&self) -> usize {
         self.inner.len()
+    }
+
+    /// Returns true if the channel is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
     }
 }
 
@@ -88,36 +96,34 @@ impl<T> fmt::Debug for ControlSender<T> {
     }
 }
 
-/// Reciever end for control messages(on RT thread).
+/// Receiver end for control messages (on RT thread).
 ///
-///
-/// This receiver is held by the real time thread and receives messages
-/// from the control/ui thread. it only provides non blocking operations
-
+/// This receiver is held by the real-time thread and receives messages
+/// from the control/UI thread. It only provides non-blocking operations.
 pub struct RealtimeReceiver<T> {
     inner: Receiver<T>,
 }
 
 impl<T> RealtimeReceiver<T> {
-    /// Tries to receive a message without blocking
+    /// Tries to receive a message without blocking.
     ///
-    /// Returns None if no message is available
+    /// Returns `None` if no message is available.
     #[must_use]
     pub fn try_recv(&self) -> Option<T> {
         self.inner.try_recv().ok()
     }
 
-    /// Drains all available messages into a vector
+    /// Drains all available messages into a vector.
     ///
-    /// WARNING: This will alloacte , so should only be used for bounded message counts.
+    /// **Warning**: This allocates! Only use for bounded message counts.
     #[must_use]
     pub fn drain(&self) -> Vec<T> {
         self.inner.drain().collect()
     }
 
-    /// Processes all available messages with a callback
+    /// Processes all available messages with a callback.
     ///
-    /// This is the preferred way to handle messages on the RT threads
+    /// This is the preferred way to handle messages on RT threads.
     pub fn process_all<F>(&self, mut f: F)
     where
         F: FnMut(T),
@@ -127,13 +133,13 @@ impl<T> RealtimeReceiver<T> {
         }
     }
 
-    /// Returns true if the sender has been dropped
+    /// Returns true if the sender has been dropped.
     #[must_use]
     pub fn is_disconnected(&self) -> bool {
         self.inner.is_disconnected()
     }
 
-    /// Returns the number of messages in the channel
+    /// Returns the number of messages in the channel.
     #[must_use]
     pub fn len(&self) -> usize {
         self.inner.len()
@@ -149,14 +155,23 @@ impl<T> RealtimeReceiver<T> {
 impl<T: Send + 'static> RealtimeSafe for RealtimeReceiver<T> {}
 impl<T> NonBlocking for RealtimeReceiver<T> {}
 
-// =====================
-// Real time thread -> Control thread
-// ===================
+impl<T> fmt::Debug for RealtimeReceiver<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RealtimeReceiver")
+            .field("len", &self.len())
+            .field("disconnected", &self.is_disconnected())
+            .finish()
+    }
+}
 
-/// Sender end for feedback messages (RT to non RT)
+// ============================================================================
+// Real-Time Thread -> Control Thread
+// ============================================================================
+
+/// Sender end for feedback messages (RT to non-RT).
 ///
-/// This sender is held by the real time thread and sends feedback
-/// to the control ui thread. it only provides non blocking operations
+/// This sender is held by the real-time thread and sends feedback
+/// to the control/UI thread. It only provides non-blocking operations.
 pub struct RealtimeSender<T> {
     inner: Sender<T>,
 }
@@ -164,7 +179,7 @@ pub struct RealtimeSender<T> {
 impl<T> RealtimeSender<T> {
     /// Tries to send a message without blocking.
     ///
-    /// Retruns `true` if the message was sent, `false` is the channel is full.
+    /// Returns `true` if the message was sent, `false` if the channel is full.
     #[must_use]
     pub fn try_send(&self, msg: T) -> bool {
         self.inner.try_send(msg).is_ok()
@@ -182,7 +197,7 @@ impl<T> RealtimeSender<T> {
         self.inner.len()
     }
 
-    /// Returns true if the channel is empty
+    /// Returns true if the channel is empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
@@ -209,31 +224,34 @@ impl<T> fmt::Debug for RealtimeSender<T> {
     }
 }
 
-/// Receiver end for feedback messages (on control thread)
+/// Receiver end for feedback messages (on control thread).
 ///
-/// This receiver is held by the control ui thread and receives feedback
-/// from the real time thread. may block if desired
+/// This receiver is held by the control/UI thread and receives feedback
+/// from the real-time thread. It may block if desired.
 pub struct ControlReceiver<T> {
     inner: Receiver<T>,
 }
 
 impl<T> ControlReceiver<T> {
-    /// Tries to receive a message without blocking
+    /// Tries to receive a message without blocking.
     #[must_use]
     pub fn try_recv(&self) -> Option<T> {
         self.inner.try_recv().ok()
     }
-    /// Receives a message, blocking if none is available
+
+    /// Receives a message, blocking if none is available.
     ///
-    /// Returns an error if the sender has been dropped
+    /// # Errors
+    /// Returns an error if the sender has been dropped.
     pub fn recv(&self) -> Result<T> {
         self.inner
             .recv()
             .map_err(|_| AudioEngineError::ChannelRecvFailed)
     }
 
-    /// Receives a message with a timeout
+    /// Receives a message with a timeout.
     ///
+    /// # Errors
     /// Returns an error if the timeout expires or the sender is dropped.
     pub fn recv_timeout(&self, timeout: std::time::Duration) -> Result<T> {
         self.inner
@@ -241,25 +259,25 @@ impl<T> ControlReceiver<T> {
             .map_err(|_| AudioEngineError::ChannelRecvFailed)
     }
 
-    /// Drains all the available messages.
+    /// Drains all available messages.
     #[must_use]
     pub fn drain(&self) -> Vec<T> {
         self.inner.drain().collect()
     }
 
-    /// Returns true if the sender has been dropped
+    /// Returns true if the sender has been dropped.
     #[must_use]
     pub fn is_disconnected(&self) -> bool {
         self.inner.is_disconnected()
     }
 
-    /// Returns the number of messages in the channel
+    /// Returns the number of messages in the channel.
     #[must_use]
     pub fn len(&self) -> usize {
         self.inner.len()
     }
 
-    /// Returns true if the channel is empty
+    /// Returns true if the channel is empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
@@ -268,21 +286,21 @@ impl<T> ControlReceiver<T> {
 
 impl<T> fmt::Debug for ControlReceiver<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ControLReceiver")
+        f.debug_struct("ControlReceiver")
             .field("len", &self.len())
             .field("disconnected", &self.is_disconnected())
             .finish()
     }
 }
 
-// ==================================
-// Control message types
-// =================================
+// ============================================================================
+// Control Message Types
+// ============================================================================
 
-/// Common control message types for the audio engine
+/// Common control message type for the audio engine.
 #[derive(Debug, Clone)]
 pub enum EngineCommand {
-    /// Start the processing
+    /// Start audio processing
     Start,
     /// Stop audio processing
     Stop,
@@ -292,9 +310,9 @@ pub enum EngineCommand {
     Resume,
     /// Set the master gain
     SetGain(crate::types::Gain),
-    /// Set the master plan
+    /// Set the master pan
     SetPan(crate::types::Pan),
-    /// Update effect parameters
+    /// Update effect parameter
     SetEffectParam {
         /// Effect identifier
         effect_id: u32,
@@ -303,10 +321,9 @@ pub enum EngineCommand {
         /// New parameter value
         value: f32,
     },
-
     /// Enable or disable an effect
     SetEffectEnabled {
-        /// Effect identiifer
+        /// Effect identifier
         effect_id: u32,
         /// Whether the effect is enabled
         enabled: bool,
@@ -331,13 +348,13 @@ pub enum EngineFeedback {
     Position(crate::types::TransportPosition),
     /// Engine state changed
     StateChanged(EngineState),
-    /// Buffer underrun occured
+    /// Buffer underrun occurred
     Underrun,
     /// Error occurred
     Error(String),
 }
 
-/// State of the audio engine
+/// State of the audio engine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EngineState {
     /// Engine is stopped
