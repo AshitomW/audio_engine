@@ -10,6 +10,7 @@
 #![deny(clippy::cast_possible_wrap)]
 #![allow(clippy::module_name_repetitions)]
 
+pub mod audio;
 pub mod buffer;
 pub mod channel;
 pub mod error;
