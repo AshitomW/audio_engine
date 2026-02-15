@@ -1,3 +1,4 @@
+pub mod context;
 ///! Audio device and stream management
 ///
 /// This module provides abstraction over CPAL ofr audio devices

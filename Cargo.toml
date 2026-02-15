@@ -11,6 +11,7 @@ crossbeam = "0.8.4"
 portable-atomic = "1.13.1"
 cpal = "0.15"
 log = "0.4.29"
+parking_lot = "0.12.5"
 [dev-dependencies]
 
 criterion = "0.8.2"
