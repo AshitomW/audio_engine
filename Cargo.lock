@@ -62,6 +62,7 @@ dependencies = [
  "criterion",
  "crossbeam",
  "flume",
+ "log",
  "portable-atomic",
  "rtrb",
  "thiserror 2.0.18",
