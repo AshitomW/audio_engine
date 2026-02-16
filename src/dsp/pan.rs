@@ -38,7 +38,7 @@ impl PanEffect {
         Self {
             id,
             enabled: true,
-            pan: SmoothParam::new(pan.value()),
+            pan: SmoothParam::new(pan.values()),
             sample_rate: SampleRate::Hz48000,
             param_info,
         }
@@ -75,7 +75,7 @@ impl Effect for PanEffect {
         self.pan.set_immediate(self.pan.target());
     }
 
-    fn initialize(&mut self, sample_rate: SampleRate, channels: ChannelCount) {
+    fn initialize(&mut self, sample_rate: SampleRate, _: ChannelCount) {
         self.sample_rate = sample_rate;
     }
 
@@ -85,7 +85,7 @@ impl Effect for PanEffect {
         }
 
         let channel_count = channels.count_usize();
-        for frame in samples.chunks_exact_mut(channel_coutn) {
+        for frame in samples.chunks_exact_mut(channel_count) {
             let pan = Pan::new(self.pan.next());
             let (left_gain, right_gain) = pan.gains();
 

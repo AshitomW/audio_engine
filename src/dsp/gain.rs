@@ -77,17 +77,18 @@ impl Effect for GainEffect {
         self.gain.set_immediate(self.gain.target());
     }
 
-    fn initialize(&mut self, sample_rate: SampleRate, channels: ChannelCount) {
+    fn initialize(&mut self, sample_rate: SampleRate, _channels: ChannelCount) {
         self.sample_rate = sample_rate;
     }
 
-    fn process(&mut self, samples: &mut [Sample], channels: ChannelCount) {
+    fn process(&mut self, samples: &mut [Sample], _channels: ChannelCount) {
         if !self.enabled {
             return;
         }
 
         for sample in samples.iter_mut() {
-            let gain = self.gain.next() * sample = Sample::new(sample.value() * gain);
+            let gain = self.gain.next();
+            *sample = Sample::new(sample.value() * gain);
         }
     }
 

@@ -430,7 +430,7 @@ impl Pan {
 
     /// Returns the raw pan value
     #[must_use]
-    pub const fn value(self) -> f32 {
+    pub const fn values(self) -> f32 {
         self.0
     }
 
