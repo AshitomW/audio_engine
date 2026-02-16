@@ -1,5 +1,3 @@
-use crate::buffer::RealtimeBuffer;
-use crate::markers::RealtimeSafe;
 use crate::types::{ChannelCount, Sample, SampleRate};
 use std::fmt;
 
@@ -54,4 +52,25 @@ pub trait Effect: Send + 'static {
 pub trait SmoothableEffect: Effect {
     fn set_parameter_smooth(&mut self, id: ParamId, value: ParamValue, samples: u32);
     fn update_smoothing(&mut self);
+}
+#[derive(Debug, Clone, Copy)]
+pub struct ProcessContext {
+    pub sample_rate: SampleRate,
+    pub channels: ChannelCount,
+    pub frames: usize,
+    pub position_samples: u64,
+    pub tempo_bpm: Option<f32>,
+}
+
+impl ProcessContext {
+    #[must_use]
+    pub const fn new(sample_rate: SampleRate, channels: ChannelCount, frames: usize) -> Self {
+        Self {
+            sample_rate,
+            channels,
+            frames,
+            position_samples: 0,
+            tempo_bpm: None,
+        }
+    }
 }
