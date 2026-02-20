@@ -1,6 +1,5 @@
 //! Biquad filter implementation
 use std::f32::consts::PI;
-use std::iter::Filter;
 
 use crate::dsp::params::{ParamId, ParamValue, ParameterInfo, SmoothParam};
 use crate::dsp::traits::{Effect, EffectId};
@@ -141,7 +140,7 @@ impl BiquadFilter {
 
     #[must_use]
     pub fn high_pass(id: EffectId, frequency: f32, q: f32) -> Self {
-        Self::with_params(id, FilterType::HighPass, frequency, q, gain_db)
+        Self::with_params(id, FilterType::HighPass, frequency, q, 0.0)
     }
     #[must_use]
     pub fn bandpass(id: EffectId, frequency: f32, q: f32) -> Self {
@@ -311,7 +310,7 @@ impl Effect for BiquadFilter {
         self.update_coefficients();
     }
 
-    fn initialize(&mut self, sample_rate: SampleRate, channels: ChannelCount) {
+    fn initialize(&mut self, sample_rate: SampleRate, _channels: ChannelCount) {
         self.sample_rate = sample_rate;
         self.update_coefficients();
     }
